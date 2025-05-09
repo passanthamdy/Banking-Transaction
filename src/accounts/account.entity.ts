@@ -13,7 +13,12 @@ export class Account {
     @Column()
     accountName: string;
 
-    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+    @Column({
+        type: 'decimal', precision: 12, scale: 2, default: 0, transformer: {
+            to: (value: number) => value,
+            from: (value: string) => parseFloat(value),
+        },
+    })
     balance: number;
 
     @CreateDateColumn()
