@@ -4,9 +4,9 @@ import { Repository } from 'typeorm';
 import { Account } from './account.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { TransactionDto } from './dto/transaction.dto';
-import { TransactionsService } from 'src/transactions/transactions.service';
-import { TransactionType } from 'src/enums';
-import { ERROR_MESSAGES } from 'src/config/error.config';
+import { TransactionsService } from '../transactions/transactions.service';
+import { TransactionType } from '../enums';
+import { ERROR_MESSAGES } from '../config/error.config';
 
 @Injectable()
 export class AccountsService {

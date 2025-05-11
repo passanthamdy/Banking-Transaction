@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
-import { APIResponse } from 'src/common/api-models/api-response';
+import { APIResponse } from '../common/api-models/api-response';
 import { TransactionDto } from './dto/transaction.dto';
 import { ApiOperation } from '@nestjs/swagger';
 

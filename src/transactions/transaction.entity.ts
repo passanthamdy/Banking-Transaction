@@ -1,6 +1,6 @@
-import { Account } from 'src/accounts/account.entity';
+import { Account } from '../accounts/account.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
-import { TransactionType } from 'src/enums';
+import { TransactionType } from '../enums';
 
 @Entity('transactions')
 export class Transaction {
