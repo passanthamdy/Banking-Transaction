@@ -1,12 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, QueryRunner, Repository } from 'typeorm';
 import { Account } from './account.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { TransactionDto } from './dto/transaction.dto';
-import { TransactionsService } from '../transactions/transactions.service';
-import { TransactionType } from '../enums';
 import { ERROR_MESSAGES } from '../config/error.config';
+import { WithdrawTransaction } from '../common/database-transaction/withdraw-transaction';
+import { DepositTransaction } from '../common/database-transaction/deposit-transaction';
 
 @Injectable()
 export class AccountsService {
@@ -14,7 +14,10 @@ export class AccountsService {
     constructor(
         @InjectRepository(Account)
         private accountRepo: Repository<Account>,
-        private readonly transactionsService: TransactionsService 
+        private readonly withdrawTransaction: WithdrawTransaction,
+        private readonly depositTransaction: DepositTransaction,
+
+
     ) { }
     /**
      * Creates a new account with a unique account number.
@@ -28,7 +31,7 @@ export class AccountsService {
             accountName: createAccount.name,
         });
         return this.accountRepo.save(account);
-     
+
     }
     /**
      * Retrieves the balance of an account by its ID.
@@ -37,7 +40,7 @@ export class AccountsService {
      * @throws NotFoundException if the account is not found.
      */
     async getBalance(id: number): Promise<number> {
-        const account =  await this.getAccountById(id);
+        const account = await this.getAccountById(id);
         return account.balance;
     }
 
@@ -62,15 +65,10 @@ export class AccountsService {
      * @returns The transaction Id.
      */
     async deposit(id: number, depositTransaction: TransactionDto): Promise<number> {
-        const account = await this.getAccountById(id);
-        const transaction = await this.transactionsService.createTransaction({
-            account: account,
-            type: TransactionType.DEPOSIT,
-            amount: depositTransaction.amount,
-        })
-        account.balance += depositTransaction.amount;
-        await this.accountRepo.save(account);
-        return transaction.id;
+      return this.depositTransaction.run({
+        accountId: id,
+        amount: depositTransaction.amount
+      })
 
     }
     /**
@@ -79,19 +77,13 @@ export class AccountsService {
      * @param depositTransaction - The transaction details.
      * @returns The transaction Id.
      */
-    async withdraw(id: number, depositTransaction: TransactionDto): Promise<number> {
-        const account = await this.getAccountById(id);
-        if (account.balance < depositTransaction.amount) {
-            throw new BadRequestException(ERROR_MESSAGES.INSUFFICIENT_BALANCE);
-        }
-        const transaction = await this.transactionsService.createTransaction({
-            account: account,
-            type: TransactionType.WITHDRAW,
-            amount: depositTransaction.amount,
-        })
-        account.balance -= depositTransaction.amount;
-        await this.accountRepo.save(account);
-        return transaction.id;
+    async withdraw(id: number, withdrawDto: TransactionDto): Promise<number> {
+        return this.withdrawTransaction.run({
+            accountId: id,
+            amount: withdrawDto.amount
+          });
     }
+
+
 
 }

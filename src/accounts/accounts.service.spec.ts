@@ -7,12 +7,14 @@ import { TransactionsService } from '../transactions/transactions.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ERROR_MESSAGES } from '../config/error.config';
-import { TransactionType } from '../enums';
+import { WithdrawTransaction } from '../common/database-transaction/withdraw-transaction';
+import { DepositTransaction } from '../common/database-transaction/deposit-transaction';
 
 describe('AccountsService', () => {
   let accountService: AccountsService;
   let accountRepo: Repository<Account>;
-  let transactionsService: TransactionsService;
+  let depositDbTransaction: DepositTransaction;
+  let withdrawDbTransaction: WithdrawTransaction;
 
   const testAccount: Account = {
     id: 1,
@@ -41,12 +43,19 @@ describe('AccountsService', () => {
             findOne: jest.fn().mockResolvedValue(testAccount),
           }
         },
+
         {
-          provide: TransactionsService,
-          useValue: {
-            createTransaction: jest.fn().mockResolvedValue(transactionResult),
-          },
+          provide: WithdrawTransaction,
+          useValue:{
+            run: jest.fn().mockResolvedValue(transactionResult),
+          }
         },
+        {
+          provide: DepositTransaction,
+          useValue:{
+            run: jest.fn().mockResolvedValue(transactionResult),
+          }
+        }
 
       ],
 
@@ -54,7 +63,8 @@ describe('AccountsService', () => {
 
     accountService = module.get<AccountsService>(AccountsService);
     accountRepo = module.get<Repository<Account>>(getRepositoryToken(Account));
-    transactionsService = module.get<TransactionsService>(TransactionsService);
+    depositDbTransaction = module.get<DepositTransaction>(DepositTransaction);
+    withdrawDbTransaction = module.get<WithdrawTransaction>(WithdrawTransaction);
     jest.clearAllMocks();
 
   });
@@ -110,41 +120,24 @@ describe('AccountsService', () => {
       const depositTransaction = { amount: 500 };
       const accountCopy = JSON.parse(JSON.stringify(testAccount));
       jest.spyOn(accountService, 'getAccountById').mockResolvedValue(accountCopy);
-
       const result = await accountService.deposit(1, depositTransaction);
       console.log("result", result);
+      expect(depositDbTransaction.run).toHaveBeenCalledWith({ accountId: 1, amount: depositTransaction.amount });
 
-      expect(transactionsService.createTransaction).toHaveBeenCalledWith({
-        account: accountCopy,
-        type: TransactionType.DEPOSIT,
-        amount: 500,
-      });
-      expect(accountRepo.save).toHaveBeenCalledWith({
-        ...accountCopy,
-        balance: 1500,
-      });
-      expect(result).toBe(transactionResult.id);
+      expect(result).toBe(transactionResult);
     });
   });
 
   describe('withdraw', () => {
     it('should withdraw amount and return transaction id', async () => {
       const withdrawTransaction = { amount: 300 };
-      const accountCopy = JSON.parse(JSON.stringify(testAccount)); // balance = 1000
+      const accountCopy = JSON.parse(JSON.stringify(testAccount)); 
 
       jest.spyOn(accountService, 'getAccountById').mockResolvedValue(accountCopy);
       const result = await accountService.withdraw(1, withdrawTransaction);
-      expect(transactionsService.createTransaction).toHaveBeenCalledWith({
-        account: accountCopy,
-        type: TransactionType.WITHDRAW,
-        amount: 300,
-      });
+      expect(withdrawDbTransaction.run).toHaveBeenCalledWith({ accountId: 1, amount: withdrawTransaction.amount });
 
-      expect(accountRepo.save).toHaveBeenCalledWith({
-        ...accountCopy,
-        balance: 700,
-      });
-      expect(result).toBe(transactionResult.id);
+      expect(result).toBe(transactionResult);
     });
 
     it('should throw BadRequestException if balance is insufficient', async () => {
@@ -153,12 +146,11 @@ describe('AccountsService', () => {
       accountCopy.balance = 100;
 
       jest.spyOn(accountService, 'getAccountById').mockResolvedValue(accountCopy);
-
+      jest.spyOn(withdrawDbTransaction, 'run').mockRejectedValue(new BadRequestException(ERROR_MESSAGES.INSUFFICIENT_BALANCE));
+      expect(withdrawDbTransaction.run).rejects.toThrow(BadRequestException);
+      expect(withdrawDbTransaction.run).rejects.toThrow(ERROR_MESSAGES.INSUFFICIENT_BALANCE);
       await expect(accountService.withdraw(1, withdrawTransaction)).rejects.toThrow(BadRequestException);
       await expect(accountService.withdraw(1, withdrawTransaction)).rejects.toThrow(ERROR_MESSAGES.INSUFFICIENT_BALANCE);
-
-      expect(transactionsService.createTransaction).not.toHaveBeenCalled();
-      expect(accountRepo.save).not.toHaveBeenCalled();
     });
   });
 
